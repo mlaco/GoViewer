@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<jnlp href="launch.jnlp" spec="1.0+">
+    <information>
+        <title>GoViewer</title>
+        <vendor>Jocelyn</vendor>
+        <homepage href=""/>
+        <description>GoViewer</description>
+        <description kind="short">GoViewer</description>
+    </information>
+<update check="always"/>
+    <resources>
+<j2se version="1.5+"/>
+<jar href="SGF Parser.jar" main="true"/>
+    <jar href="lib/swing-layout-1.0.4.jar"/>
+</resources>
+    <application-desc main-class="com.moonjob.sgfparser.ui.SGFParser">
+    </application-desc>
+</jnlp>
