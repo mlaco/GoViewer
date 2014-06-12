@@ -12,21 +12,40 @@ import java.util.logging.Logger;
 
 /**
  *
- * @author Jocelyn
+ * @author Morgan Laco
  */
 public class sequenceExtractor {
     //dir indicates direction file is being read
     //reading file backward is used to reverse sequences
 
-    private int depth, moveNum, tagdepth, maxMove;
+    // Number of times an immediate branching occurs when traversing the sgf tree
+    // from the root to the current node
+    private int depth;
+    // The mover number of the current move
+    private int moveNum;
+    // Indicates how many sets of square brackets [] in which the current node
+    // is contained
+    private int tagdepth;
+    // The highest move number of all moves
+    private int maxMove;
+    
     //lastMove and lastOccur specify the requested
     //state of play. They are needed to determine
     //the number of branches from that node.
     //numVari stores that value.
     private int lastMove, lastDepth, lastOccur, numVari, remLen;
-    private int[] occur, branchedMoveNum, parent;
+    // occur: the number of moves that exist at the depth given by the index
+    private int[] occur;
+    // branchedMoveNum: stores the common move number of the first moves after
+    // a branch point in the game record tree
+    private int[] branchedMoveNum;
+    private int[] parent;
     //In path, parent ; first index is move number, second index: 1:depth 2:occurence
-    private int[][] path,nextParent;
+    // path: array holding instructions on how to reach a move in the game.
+    // each entry indicates which branch leads to the move when a branch point is
+    // encountered
+    private int[][] path;
+    private int[][] nextParent;
     private String filename, sequence, remainder;
     private FileReader fstream;
     private int numSibs;
@@ -52,6 +71,10 @@ public class sequenceExtractor {
         tagdepth = 0;
     }
 
+    /**
+     * read the sgf file into local memory
+     * @param str 
+     */
     public void loadSGF(String str) {
         filename = str;
         try {
@@ -73,6 +96,11 @@ public class sequenceExtractor {
         }
     }
 
+    /**
+     * 
+     * @param stream
+     * @return 
+     */
     private int triage(String stream) {
         int passes = 0;
         int i = 0, q = stream.length() + 1;
@@ -82,31 +110,38 @@ public class sequenceExtractor {
         do {
 
             passes++;
-            //need to find depths for everything
+            
+			// find position in string of next instance of each grouping symbol
             int iLP = stream.indexOf("(", i);
             int iRP = stream.indexOf(")", i);
             int iLB = stream.indexOf("[", i);
-            //can't min these two, because if one is not found, then the whole
-            //result will be -1!
+			
+            // Can't use a single variable to record the earlier of the two following
+			// groupers, because if one is not found, then the whole result will be -1
             int iBLB = stream.indexOf("B[", i);
             int iWLB = stream.indexOf("W[", i);
+            
+            // If "B[" or "W[" were found, then set iBLB or iWLB to their index
             iBLB = (iBLB == -1) ? q : iBLB;
             iWLB = (iWLB == -1) ? q : iWLB;
+            
+            // Get the index of the next of either "B[" or "W["
+            // In other words, find the index of the next move
             int iCLB = Math.min(iBLB, iWLB);
+            
             int iRB = stream.indexOf("]", i);
 
-
-            //must ensure that no indices are -1;
+            // Ensure that no indices are -1;
             iLP = (iLP == -1) ? q : iLP;
             iRP = (iRP == -1) ? q : iRP;
             iLB = (iLB == -1) ? q : iLB;
             iCLB = (iCLB == -1) ? q : iCLB;
             iRB = (iRB == -1) ? q : iRB;
 
-            //now we can triage
+            // now we can triage...
+            // Find the position of the next grouping symbol
             int iLGrpr = Math.min(iLP, iLB);
             int iRGrpr = Math.min(iRP, iRB);
-
 
             if (iLGrpr < iCLB && iLGrpr < iRGrpr && iLGrpr != q) {
                 i = iLGrpr + 1;
@@ -118,6 +153,7 @@ public class sequenceExtractor {
                 i = iCLB + 5;
                 if (!(stream.length() - iCLB < 5)) {
                     try {
+                        // 
                         move(stream.substring(iCLB + 2, iCLB + 4));
                     } catch (Exception e) {
                         System.err.println("Something went wrong in move.");
@@ -139,18 +175,31 @@ public class sequenceExtractor {
         return i;
     }
 
+    /**
+     * Determine parameters indicating the position of the current move in the
+     * game record tree. This information is necessary for navigating between
+     * branches in the tree.
+     * 
+     * Note: modifies variables depth, occur, branchedMoveNum, and tagdepth
+     * 
+     * @param c grouping character in sgf record
+     */
     private void depths(char c) {
 
-        //Before changing depth and occur,
-        //record those properties of the
-        //parent node. This must be repeated
-        //after a move is recorded since
-        //depths is not encountered every move
+        // TODO: throw error if a valid grouping character is not passed in
+        
+        // Before changing depth and occur,
+        // record those properties of the
+        // parent node. This must be repeated
+        // after a move is recorded since
+        // depths is not encountered every move
 
         if (c == '[') {
             tagdepth++;
         }
         if (tagdepth == 0) {
+            // Note: parenteses do not occur within square brackets in a valid
+            // sgf file
             if (c == '(') {
                 depth++;
                 occur[depth]++;
@@ -175,9 +224,11 @@ public class sequenceExtractor {
                 && occur[depth] == path[moveNum][1]
                 && moveNum == lastMove);
         if (so) {
+            // Add the move coordinates to the current sequence.
             sequence = sequence + node + ";";
         }
-
+        
+        
         parent[0] = nextParent[moveNum][0];
         parent[1] = nextParent[moveNum][1];
         moveNum++;
@@ -187,6 +238,9 @@ public class sequenceExtractor {
         handleBranches(moveNum-1);
     }
 
+    /**
+     * Prepare the sequenceExtractor to load a new sgf file
+     */
     public void initialize() {
         depth = 0;
         for (int i = 0; i < maxMove; i++) {
@@ -210,13 +264,18 @@ public class sequenceExtractor {
 
     }
 
+    /**
+     * Navigate through the game record.
+     * @param amt indicate whether to move forward (positive values) or backward
+     * (negative values)
+     */
     public void rementLastMove(int amt) {
         //rement... as in DECrement and INCrement
         int temp = 0;
         if (amt != 0) {
             temp = amt / Math.abs(amt);
             if (
-                        (temp > 0 && numVari  > 0)
+                (temp > 0 && numVari  > 0)
                     ||  (temp < 0 && lastMove > 1)) {
                 lastMove += temp;
                 if (temp == 1 && numVari > 1) {
@@ -228,12 +287,17 @@ public class sequenceExtractor {
 
                 }
                 if (temp == -1) {
+                    
                     //the back button should not be
                     //clicked until the forward button
                     //is clicked. Fix this later.
+                    
+                    // Remove the last move from the sequence
                     sequence = sequence.substring(0, sequence.length() - 6);
+                    
                     lastDepth = path[lastMove][0];
                     lastOccur = path[lastMove][1];
+                    
                     path[lastMove + 1][0] = 0;
                     path[lastMove + 1][1] = 0;
                 }
@@ -260,6 +324,7 @@ public class sequenceExtractor {
         return seq;
     }
 
+    
     public void calcState() {
         String temp;
         try {
