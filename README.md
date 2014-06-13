@@ -1,4 +1,4 @@
-### GoViewer ###
+# GoViewer #
 
 A parser and viewer for sgf files, records of games of Go (a.k.a. Igo, Baduk, Weiqi).
 
